@@ -118,7 +118,7 @@ We will be doing that via a hash function, the long URL will be hash to be a sho
 The URL Shortener service will expose the following API endpoints to support the basic use cases:
 
 <details>
-<summary>1. **Create Short URL**</summary>
+<summary>1. Create Short URL</summary>
 
 - **Endpoint:** `/api/v1/shorten_urls`
 - **Method:** `POST`
@@ -143,7 +143,7 @@ The URL Shortener service will expose the following API endpoints to support the
 </details>
 
 <details>
-<summary>2. **Get Shorten URL Details**</summary>
+<summary>2. Get Shorten URL Details</summary>
 
 - **Endpoint:** `/api/v1/shorten_urls/{shorten_code}?key={key}`
 - **Method:** `GET`
@@ -163,7 +163,7 @@ The URL Shortener service will expose the following API endpoints to support the
 </details>
 
 <details>
-<summary>3. **Update Shorten URL**</summary>
+<summary>3. Update Shorten URL</summary>
 
 - **Endpoint:** `/api/v1/shorten_urls/{shorten_code}`
 - **Method:** `PUT`
@@ -190,7 +190,7 @@ The URL Shortener service will expose the following API endpoints to support the
 </details>
 
 <details>
-<summary>4. **Delete Shorten URL**</summary>
+<summary>4. Delete Shorten URL</summary>
 
 - **Endpoint:** `/api/v1/shorten_urls/{shorten_code}`
 - **Method:** `DELETE`
@@ -216,7 +216,7 @@ The URL Shortener service will expose the following API endpoints to support the
 </details>
 
 <details>
-<summary>5. **Redirect Shorten URL**</summary>
+<summary>5. Redirect Shorten URL</summary>
 
 - **Endpoint:** `/{shorten_code}`
 - **Method:** `GET`
