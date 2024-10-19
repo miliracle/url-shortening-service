@@ -38,6 +38,11 @@ To modify or delete a short URL, a secret key provided at the time of URL genera
 2. URL redirection should happen in real-time with minimal latency.
 3. Shortened links should not be guessable (not predictable).
 
+### Assumptions
+
+- 100 million URLs are generated per day
+- The service is expected to operate for at least 10 years, resulting in the generation of approximately 360 billion links.
+
 ## System interface definition
 
 ### API Endpoint
@@ -191,7 +196,33 @@ We will need to convert the long URL to a short code, and the short code could b
 
 ```https://www.example.com/very/long/url``` -> ```<<baseURL>>/{shortCode}```
 
-We will be doing that via a hash function, the long URL will be hash to be a short code: ```shortCode = hashFx(longURL)```
+#### Key length
+
+The shortCode consists of charactor from ```[a-z][A-Z][0-9]``` equal 62 characters.
+
+We expect to have 360 billion links to be generated so the shortCode length will be max 7 characters (```62^6 < 365 billion < 62^7```)
+
+#### Generate short code
+
+There are several methods to generate the shortCode, such as hashing the original URL, converting the ID of the URL object to base 64, or using a Key Generator Service as explained in the following resources:
+
+- [URL Shortening Service Design](https://www.designgurus.io/course-play/grokking-the-system-design-interview/doc/designing-a-url-shortening-service-like-tinyurl)
+- [System Design Interview – An Insider's Guide](https://www.amazon.com/System-Design-Interview-insiders-Second/dp/B08CMF2CQF)
+
+In this approach, I will generate the shortCode by combining the ID and creation time (in Unix time) and then converting it to base 64.
+
+The trade-offs are summarized below:
+
+| **Hash + collision resolution**                                  | **Base 62 conversion**                                                                 |
+|------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| Fixed short URL length.                                           | The short URL length is not fixed. It goes up with the ID.                              |
+| It does not need a unique ID generator.                           | This option depends on a unique ID generator.                                           |
+| Collision is possible and must be resolved.                      | Collision is impossible because ID is unique.                                           |
+| It is impossible to figure out the next available short URL because it does not depend on ID. | It is easy to figure out the next available short URL if ID increments by 1 for a new entry. This can be a security concern. |
+
+### Data Partitioning and Replication
+
+### Cache
 
 ## Identifying and resolving bottlenecks
 
