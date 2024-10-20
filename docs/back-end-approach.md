@@ -36,12 +36,26 @@ To modify or delete a short URL, a secret key provided at the time of URL genera
 
 1. The system should be highly available. This is required because, if our service is down, all the URL redirections will start failing.
 2. URL redirection should happen in real-time with minimal latency.
-3. Shortened links should not be guessable (not predictable).
 
-### Assumptions
+## Back-of-the-envelope estimation
 
+### Performance Consideration
+
+- Assuming a medium URL has 10,000 clicks, while the most popular URLs have millions of clicks.
 - 100 million URLs are generated per day
 - The service is expected to operate for at least 10 years, resulting in the generation of approximately 360 billion links.
+- The maximum size of a link is 2048 characters (2048 bytes), but let's assume the average length of a link is around 77 bytes (source: [Typical URL lengths for storage calculation purposes](https://stackoverflow.com/questions/6168962/typical-url-lengths-for-storage-calculation-purposes-url-shortener)).
+- Our system supports tracking statistics of the shortened URLs, so the ratio of read to write operations could be 1:1.
+
+### Traffic estimates
+
+### Storage estimates
+
+### Bandwidth estimates
+
+### Memory estimates
+
+### High-level estimates
 
 ## System interface definition
 
@@ -54,12 +68,13 @@ The URL Shortener Service will expose the following REST API endpoints to suppor
 
 - **Endpoint:** `/api/v1/shorten_urls`
 - **Method:** `POST`
-- **Description:** Create a shortened URL from the original URL. The response includes a unique key that can be used to modify the shortened URL and a shorten_code that will be used for redirection.
+- **Description:** Create a shortened URL from the original URL and the short code defined by the user. The response includes a unique key that can be used to modify the shortened URL.
 - **Request Body:**
 
   ```json
   {
-    "original_url": "https://www.example.com/very/long/url"
+    "original_url": "https://www.example.com/very/long/url",
+    "short_code": "example"
   }
   ```
 
@@ -68,7 +83,6 @@ The URL Shortener Service will expose the following REST API endpoints to suppor
   ```json
   {
     "key": "unique_key_for_modification",
-    "shorten_code": "shortCode"
   }
   ```
 
@@ -168,6 +182,16 @@ The URL Shortener Service will expose the following REST API endpoints to suppor
 
 Figure 3: Data model for URL shortening service
 
+**What database to use?**
+
+Since we anticipate storing billions of rows, and we don’t need to use relationships between objects – a NoSQL store like DynamoDB, Cassandra or Riak is a better choice. A NoSQL choice would also be easier to scale.
+
+## High-level design
+
+![High-Level Architecture](be-highlevel-architech.png)
+
+Figure 4: High-level architecture for URL shortening service
+
 ## System Design and Algorithm
 
 ### URL Redirecting
@@ -190,60 +214,42 @@ Because we want to update the URL and track clicks, we will use the 302 status c
 
 Figure 2: Visual representation of URL redirection process
 
-### URL Shortening
-
-We will need to convert the long URL to a short code, and the short code could be mapped back to the long URL
-
-```https://www.example.com/very/long/url``` -> ```<<baseURL>>/{shortCode}```
-
-#### Key length
-
-The shortCode consists of charactor from ```[a-z][A-Z][0-9]``` equal 62 characters.
-
-We expect to have 360 billion links to be generated so the shortCode length will be max 7 characters (```62^6 < 365 billion < 62^7```)
-
-#### Generate short code
-
-There are several methods to generate the shortCode, such as hashing the original URL, converting the ID of the URL object to base 64, or using a Key Generator Service as explained in the following resources:
-
-- [URL Shortening Service Design](https://www.designgurus.io/course-play/grokking-the-system-design-interview/doc/designing-a-url-shortening-service-like-tinyurl)
-- [System Design Interview – An Insider's Guide](https://www.amazon.com/System-Design-Interview-insiders-Second/dp/B08CMF2CQF)
-
-In this approach, I will generate the shortCode by combining the ID and creation time (in Unix time) and then converting it to base 64.
-
-The trade-offs are summarized below:
-
-| **Hash + collision resolution**                                  | **Base 62 conversion**                                                                 |
-|------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| Fixed short URL length.                                           | The short URL length is not fixed. It goes up with the ID.                              |
-| It does not need a unique ID generator.                           | This option depends on a unique ID generator.                                           |
-| Collision is possible and must be resolved.                      | Collision is impossible because ID is unique.                                           |
-| It is impossible to figure out the next available short URL because it does not depend on ID. | It is easy to figure out the next available short URL if ID increments by 1 for a new entry. This can be a security concern. |
-
-### Data Partitioning and Replication
-
 ### Cache
+
+The cache is used to store frequently accessed links. Before querying the backend storage, the application servers can quickly check if the cache contains the desired URL.
+
+#### Cache memory capacity
+
+To estimate the cache memory capacity required for our URL shortening service, we need to consider the following factors:
+
+1. **Number of URLs to be cached:** Let's assume we want to cache the top 1% of the most frequently accessed URLs in a month. Given that we generate 100 million URLs per day, over a month (30 days), we will have approximately 3 billion URLs. 1% of 3 billion is 30 million URLs.
+
+2. **Average size of a URL:** As mentioned earlier, the average length of a URL is around 77 bytes.
+
+3. **Metadata storage:** In addition to the URL itself, we need to store metadata such as access count, timestamps, and other relevant information. Let's assume an additional 50 bytes per URL for metadata.
+
+4. **Total size per URL:** The total size per URL entry in the cache would be 77 bytes (URL) + 50 bytes (metadata) = 127 bytes.
+
+5. **Total cache size:** To store 30 million URLs, the total cache size required would be 30 million * 127 bytes = 3.81 billion bytes, which is approximately 3.81 GB.
+
+Therefore, we would need around 3.81 GB of cache memory to store the top 1% of the most frequently accessed URLs in a month for our URL shortening service.
+
+#### Cache eviction policy
+
+The Least Recently Used (LRU) eviction policy would best fit our needs. This policy ensures that the least recently accessed URLs are evicted first, making room for new entries. This is suitable for our use case as it keeps the most frequently accessed URLs in the cache.
+
+#### How does cache enhance performance during analytics processing?
+
+A write-through cache is a caching strategy where data is written to both the cache and the underlying storage simultaneously. This ensures that the cache is always consistent with the storage, but it can introduce some latency due to the double write operation. This strategy is useful when data consistency is critical.
+
+For more information, refer to this [link](https://www.techtarget.com/whatis/definition/write-through#:~:text=Write%2Dthrough%20cache%2C%20as%20the,to%20the%20final%20storage%20asset).
 
 ## Identifying and resolving bottlenecks
 
-## Back-of-the-envelope estimation
+### Find duplicated short code
 
-### Performance Consideration
-
-- Assuming a medium URL has 10,000 clicks, while the most popular URLs have millions of clicks.
-- Assuming 500 million new URLs per month.
-- The maximum size of a link is 2048 characters (2048 bytes), but let's assume the average length of a link is around 77 bytes (source: [Typical URL lengths for storage calculation purposes](https://stackoverflow.com/questions/6168962/typical-url-lengths-for-storage-calculation-purposes-url-shortener)).
-- Our system supports tracking statistics of the shortened URLs, so the ratio of read to write operations could be 1:1.
-
-### Traffic estimates
-
-### Storage estimates
-
-### Bandwidth estimates
-
-### Memory estimates
-
-### High-level estimates
+1. Indexing the URL table by shortCode
+2. Bloom filter
 
 ## Reference resources
 
